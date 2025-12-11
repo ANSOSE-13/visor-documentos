@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="es" class="transition-colors duration-300">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal File Viewer Cloud</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Fuentes -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Highlight.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+
+    <!-- Librerías Externas -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    },
+                    colors: {
+                        brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 900: '#0c4a6e' },
+                        dark: { 800: '#1f2937', 900: '#111827', 950: '#030712' }
+                    }
+                }
+            }
+        }
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+
+    <style>
+        /* Estilos Markdown */
+        .markdown-body { color: #374151; line-height: 1.6; font-size: var(--viewer-font-size, 16px); }
+        .markdown-body h1 { font-size: 2em; font-weight: bold; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; margin: 1em 0 0.5em; }
+        .markdown-body code { background: #f3f4f6; padding: 0.2em 0.4em; border-radius: 3px; font-family: monospace; font-size: 0.9em; }
+        .markdown-body pre { background: #1f2937; color: #fff; padding: 1em; border-radius: 0.5em; overflow-x: auto; margin-bottom: 1em; }
+        .markdown-body a { color: #0284c7; text-decoration: underline; }
+        .dark .markdown-body { color: #d1d5db; }
+        .dark .markdown-body h1 { border-bottom-color: #374151; color: #f9fafb; }
+        .dark .markdown-body code { background: #374151; color: #e5e7eb; }
+        .dark .markdown-body pre { background: #111827; border: 1px solid #374151; }
+
+        /* Utilidades y Tablas */
+        .drag-active { border-color: #0ea5e9 !important; background-color: #f0f9ff !important; transform: scale(1.02); }
+        .dark .drag-active { background-color: #1e293b !important; }
+        .excel-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .excel-table th, .excel-table td { padding: 8px 12px; border: 1px solid #e2e8f0; white-space: nowrap; }
+        .excel-table th { background-color: #f8fafc; font-weight: 600; position: sticky; top: 0; }
+        .dark .excel-table th { background-color: #1f2937; color: #e5e7eb; border-color: #374151; }
+        .dark .excel-table td { color: #d1d5db; border-color: #374151; }
+
+        /* Editor Dual Pane */
+        .code-wrapper { display: flex; width: 100%; height: 100%; overflow: auto; background-color: white; font-family: 'JetBrains Mono', monospace; }
+        .dark .code-wrapper { background-color: #1e1e1e; }
+        .gutter { flex-shrink: 0; text-align: right; padding: 1rem 0.75rem; min-width: 3.5rem; background-color: #f8f9fa; border-right: 1px solid #e5e7eb; color: #9ca3af; user-select: none; line-height: 1.5; position: sticky; left: 0; z-index: 10; }
+        .dark .gutter { background-color: #1e1e1e; border-right-color: #374151; color: #6b7280; }
+        .code-pane { flex-grow: 1; padding: 1rem; margin: 0; background: transparent; color: inherit; line-height: 1.5; overflow-x: visible; }
+        .wrap-text .code-pane { white-space: pre-wrap; word-wrap: break-word; }
+        .nowrap-text .code-pane { white-space: pre; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-dark-950 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- Header -->
+    <header class="bg-white dark:bg-dark-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 transition-colors duration-300">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-brand-600 rounded-lg flex items-center justify-center text-white text-xl shadow-sm relative overflow-hidden group">
+                    <i class="ph ph-files relative z-10"></i>
+                    <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg sm:text-xl text-gray-900 dark:text-white tracking-tight leading-tight flex items-center gap-2">
+                        Universal Viewer 
+                        <span class="text-[10px] bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Cloud</span>
+                    </h1>
+                    <p class="hidden sm:block text-xs text-gray-500 dark:text-gray-400 font-medium">Visualizador + Historial en la Nube</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                <!-- User Profile / Login -->
+                <div id="authContainer" class="mr-2 border-r border-gray-200 dark:border-gray-700 pr-3">
+                    <button id="loginBtn" onclick="signIn()" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                        <i class="ph ph-google-logo text-lg"></i> Acceder
+                    </button>
+                    <div id="userProfile" class="hidden flex items-center gap-3 group relative cursor-pointer">
+                        <span id="userName" class="text-xs font-medium hidden sm:block">Usuario</span>
+                        <img id="userAvatar" src="" alt="Avatar" class="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600">
+                        <!-- Dropdown Logout -->
+                        <div class="absolute right-0 top-full mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 p-1 hidden group-hover:block z-50">
+                            <button onclick="logOut()" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded flex items-center gap-2">
+                                <i class="ph ph-sign-out"></i> Salir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="toggleTheme()" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 transition-all">
+                    <i id="themeIcon" class="ph ph-moon text-lg"></i>
+                </button>
+                <button onclick="toggleSettingsModal()" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 transition-all">
+                    <i class="ph ph-gear text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow flex flex-col items-center justify-start pt-8 pb-12 px-4 w-full max-w-6xl mx-auto z-10">
+        <!-- Drop Zone -->
+        <div id="dropZone" class="w-full max-w-3xl flex flex-col gap-6">
+            <div class="bg-white dark:bg-dark-800 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer hover:border-brand-500 dark:hover:border-brand-500 hover:bg-gray-50 dark:hover:bg-gray-800/80 group shadow-sm relative overflow-hidden">
+                <input type="file" id="fileInput" class="hidden" multiple>
+                <div class="flex flex-col items-center justify-center pointer-events-none relative z-10">
+                    <div class="w-20 h-20 bg-brand-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+                        <i class="ph ph-cloud-arrow-up text-4xl text-brand-600 dark:text-brand-400"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Arrastra tu archivo aquí</h2>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto text-sm">Soporta Excel, ZIP, PDF, Código, Imágenes, 3D...<br>Procesamiento local.</p>
+                    <span class="bg-brand-600 dark:bg-brand-600 text-white px-6 py-2.5 rounded-lg font-medium shadow-md shadow-brand-500/20 hover:bg-brand-700 transition-colors cursor-pointer pointer-events-auto" onclick="document.getElementById('fileInput').click()">Seleccionar Archivo</span>
+                </div>
+            </div>
+
+            <!-- Recientes -->
+            <div id="recentFilesContainer" class="hidden">
+                <div class="flex justify-between items-end mb-3 px-1">
+                    <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="ph ph-clock-counter-clockwise"></i> Recientes
+                        <span id="syncStatus" class="text-[10px] font-normal normal-case bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-500 hidden">Local</span>
+                    </h3>
+                </div>
+                <div id="recentFilesList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </div>
+        </div>
+
+        <!-- Viewer Container -->
+        <div id="viewerContainer" class="w-full hidden mt-2 animate-[fadeIn_0.5s_ease-out]">
+            <div class="bg-white dark:bg-dark-800 rounded-t-xl border border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50 transition-colors">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <div class="min-w-[40px] h-10 flex items-center justify-center bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600"><i id="fileIcon" class="ph ph-file text-xl text-gray-400 dark:text-gray-300"></i></div>
+                    <div class="overflow-hidden"><h3 id="fileName" class="font-semibold text-gray-800 dark:text-gray-200 text-sm truncate">archivo</h3><p id="fileSize" class="text-xs text-gray-500 dark:text-gray-400">0 KB</p></div>
+                </div>
+                <div class="flex gap-2 flex-shrink-0">
+                    <button id="backBtn" onclick="resetApp()" class="hidden px-3 py-1.5 text-xs font-medium bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300 rounded-lg hover:bg-brand-200 transition-colors gap-1 items-center"><i class="ph ph-arrow-left"></i> Volver</button>
+                    <button onclick="copyContent()" id="copyBtn" class="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-brand-50 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 rounded-lg transition-colors"><i class="ph ph-copy text-lg"></i></button>
+                    <button onclick="resetApp()" class="w-9 h-9 flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/30 rounded-lg transition-colors"><i class="ph ph-x text-lg"></i></button>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-dark-800 border-x border-b border-gray-200 dark:border-gray-700 rounded-b-xl shadow-lg overflow-hidden min-h-[500px] transition-colors relative">
+                <div id="loader" class="hidden absolute inset-0 bg-white/80 dark:bg-dark-900/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm"><i class="ph ph-spinner animate-spin text-4xl text-brand-600 dark:text-brand-400 mb-3"></i><p class="text-gray-600 dark:text-gray-300 font-medium">Procesando...</p></div>
+                <div id="errorMessage" class="hidden absolute inset-0 flex items-center justify-center p-8 text-center z-10"><div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-6 rounded-xl max-w-lg border border-red-100 dark:border-red-900/30"><i class="ph ph-warning-circle text-3xl mb-2 block"></i><p class="font-bold text-lg mb-1">Error</p><p id="errorText" class="text-sm opacity-90">Formato no soportado.</p></div></div>
+                
+                <!-- Viewers -->
+                <div id="codeViewer" class="hidden h-[75vh] w-full"><div class="code-wrapper nowrap-text" id="codeWrapper"><div class="gutter"><pre id="lineNumbers"></pre></div><div class="code-pane"><pre><code id="codeContent" class="block bg-transparent p-0"></code></pre></div></div></div>
+                <div id="markdownViewer" class="hidden p-8 max-h-[75vh] overflow-auto markdown-body"></div>
+                <div id="pdfViewer" class="hidden flex flex-col items-center bg-gray-500 dark:bg-gray-700 p-6 max-h-[75vh] overflow-auto gap-4"></div>
+                <div id="imageViewer" class="hidden flex justify-center items-center p-4 bg-gray-100 dark:bg-gray-900 min-h-[500px] max-h-[75vh] overflow-auto"><img id="imageContent" class="max-w-full h-auto shadow-2xl rounded-lg"></div>
+                <div id="audioViewer" class="hidden flex flex-col justify-center items-center p-12 bg-gray-50 dark:bg-gray-800 min-h-[500px]"><div class="w-40 h-40 bg-gradient-to-br from-brand-100 to-purple-100 dark:from-gray-700 dark:to-gray-800 rounded-full flex items-center justify-center mb-8 shadow-inner animate-pulse"><i class="ph ph-music-notes text-7xl text-brand-600"></i></div><audio id="audioContent" controls class="w-full max-w-md"></audio></div>
+                <div id="videoViewer" class="hidden flex justify-center items-center bg-black min-h-[500px]"><video id="videoContent" controls class="max-w-full max-h-[75vh]"></video></div>
+                <div id="excelViewer" class="hidden w-full h-[75vh] overflow-auto bg-white dark:bg-dark-800"></div>
+                <div id="zipViewer" class="hidden w-full h-[75vh] overflow-auto bg-white dark:bg-dark-800 p-2"><div id="zipFileList" class="grid grid-cols-1 gap-1"></div></div>
+                <div id="model3dViewer" class="hidden w-full h-[75vh] bg-gray-100 dark:bg-gray-900 relative"><model-viewer id="modelViewerElement" src="" camera-controls auto-rotate shadow-intensity="1" class="w-full h-full"></model-viewer></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Ajustes -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/50 dark:bg-black/70 z-[100] hidden flex items-center justify-center backdrop-blur-sm opacity-0 transition-opacity duration-200">
+        <div class="bg-white dark:bg-dark-800 rounded-2xl shadow-2xl w-full max-w-md p-6 transform scale-95 transition-transform duration-200" id="settingsModalContent">
+            <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><i class="ph ph-sliders"></i> Ajustes</h2><button onclick="toggleSettingsModal()" class="text-gray-400 hover:text-gray-600"><i class="ph ph-x text-xl"></i></button></div>
+            <div class="space-y-6">
+                <div>
+                    <h3 class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Lectura y Código</h3>
+                    <div class="mb-4"><label class="flex justify-between text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tamaño de fuente <span id="fontSizeDisplay">14px</span></label><input type="range" id="fontSizeSlider" min="10" max="24" step="1" value="14" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600"></div>
+                    <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-700"><div class="flex items-center gap-3"><i class="ph ph-text-align-left text-gray-500"></i><span class="text-sm font-medium text-gray-700 dark:text-gray-200">Word Wrap</span></div><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" id="wordWrapToggle" class="sr-only peer"><div class="w-11 h-6 bg-gray-200 peer-focus:ring-4 peer-focus:ring-brand-300 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600"></div></label></div>
+                </div>
+                <div class="pt-4 border-t border-gray-100 dark:border-gray-700"><button onclick="fullReset()" class="w-full py-2.5 px-4 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-medium text-sm gap-2 flex items-center justify-center"><i class="ph ph-trash"></i> Reiniciar Todo</button></div>
+            </div>
+            <div class="mt-8"><button onclick="toggleSettingsModal()" class="w-full py-3 bg-gray-900 text-white rounded-xl font-bold">Listo</button></div>
+        </div>
+    </div>
+
+    <!-- Firebase Logic -->
+    <script type="module">
+        // Importaciones actualizadas a la versión 12.6.0 como solicitaste
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js';
+        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js';
+
+        // Tu configuración de Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyA0JACOeq_x640BzTXiprI5_cAS3fQD0mU",
+            authDomain: "visor-e592b.firebaseapp.com",
+            projectId: "visor-e592b",
+            storageBucket: "visor-e592b.firebasestorage.app",
+            messagingSenderId: "738847688862",
+            appId: "1:738847688862:web:d7e636881be76c1ee6538f",
+            measurementId: "G-B60CHJWFZQ"
+        };
+
+        // Inicializar Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app); // Inicializamos Analytics
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        console.log("Firebase 12.6.0 inicializado con tu configuración");
+
+        let user = null;
+        let unsubscribeRecent = null;
+
+        // Listener de Auth (Estado del Usuario)
+        onAuthStateChanged(auth, (currentUser) => {
+            user = currentUser;
+            updateAuthUI();
+            syncRecentFiles(); // Al cambiar estado, recargamos el historial correspondiente
+        });
+
+        // Funciones Globales de Auth
+        window.signIn = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("Error Auth:", error);
+                alert("Error al iniciar sesión: " + error.message);
+            }
+        };
+
+        window.logOut = async () => {
+            await signOut(auth);
+            // Al salir, user será null y syncRecentFiles cambiará a localStorage automáticamente
+        };
+
+        function updateAuthUI() {
+            const loginBtn = document.getElementById('loginBtn');
+            const userProfile = document.getElementById('userProfile');
+            const userAvatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+            const syncStatus = document.getElementById('syncStatus');
+
+            if (user) {
+                // Usuario Logueado
+                loginBtn.classList.add('hidden');
+                userProfile.classList.remove('hidden');
+                userAvatar.src = user.photoURL || 'https://ui-avatars.com/api/?name=User';
+                userName.textContent = user.displayName ? user.displayName.split(' ')[0] : 'Usuario';
+                
+                syncStatus.textContent = "Sincronizado";
+                syncStatus.className = "text-[10px] font-normal normal-case bg-green-100 text-green-700 px-2 py-0.5 rounded flex items-center gap-1";
+                syncStatus.innerHTML = '<i class="ph-fill ph-cloud-check"></i> Cloud';
+                syncStatus.classList.remove('hidden');
+            } else {
+                // Usuario No Logueado (Local)
+                loginBtn.classList.remove('hidden');
+                userProfile.classList.add('hidden');
+                
+                syncStatus.textContent = "Local";
+                syncStatus.className = "text-[10px] font-normal normal-case bg-gray-100 dark:bg-gray-700 text-gray-500 px-2 py-0.5 rounded";
+                syncStatus.classList.remove('hidden');
+            }
+        }
+
+        // Lógica Híbrida de Historial
+        window.addToRecentHistory = async (file) => {
+            const fileData = {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                date: new Date().toLocaleDateString()
+            };
+
+            if (user) {
+                // MODO CLOUD: Guardar en Firestore si está logueado
+                try {
+                    await addDoc(collection(db, 'users', user.uid, 'history'), {
+                        ...fileData,
+                        timestamp: serverTimestamp()
+                    });
+                } catch (e) { 
+                    console.error("Error guardando en nube", e);
+                }
+            } else {
+                // MODO LOCAL: Guardar en localStorage si NO está logueado
+                let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+                recent = recent.filter(f => f.name !== file.name); // Evitar duplicados
+                recent.unshift(fileData);
+                if (recent.length > 5) recent.pop(); // Mantener solo 5
+                localStorage.setItem('recentFiles', JSON.stringify(recent));
+                renderRecentFiles(recent);
+            }
+        };
+
+        function syncRecentFiles() {
+            if (unsubscribeRecent) unsubscribeRecent(); // Limpiar listener anterior
+
+            if (user) {
+                // MODO CLOUD: Escuchar cambios en Firestore
+                const q = query(collection(db, 'users', user.uid, 'history'), orderBy('timestamp', 'desc'), limit(6));
+                unsubscribeRecent = onSnapshot(q, (snapshot) => {
+                    const recent = snapshot.docs.map(doc => doc.data());
+                    renderRecentFiles(recent);
+                }, (error) => {
+                    console.error("Error Firestore:", error);
+                });
+            } else {
+                // MODO LOCAL: Leer localStorage
+                const recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+                renderRecentFiles(recent);
+            }
+        }
+        
+        // Exportar para que el script normal pueda llamar a esta función al resetear
+        window.syncRecentFiles = syncRecentFiles; 
+    </script>
+
+    <!-- App Logic UI (Misma lógica visual) -->
+    <script>
+        const defaultSettings = { fontSize: 14, wordWrap: false, theme: 'system' };
+        
+        const els = {
+            dropZone: document.getElementById('dropZone'),
+            recentFilesContainer: document.getElementById('recentFilesContainer'),
+            recentFilesList: document.getElementById('recentFilesList'),
+            fileInput: document.getElementById('fileInput'),
+            viewerContainer: document.getElementById('viewerContainer'),
+            loader: document.getElementById('loader'),
+            error: document.getElementById('errorMessage'),
+            errorText: document.getElementById('errorText'),
+            fileName: document.getElementById('fileName'),
+            fileSize: document.getElementById('fileSize'),
+            fileIcon: document.getElementById('fileIcon'),
+            copyBtn: document.getElementById('copyBtn'),
+            backBtn: document.getElementById('backBtn'),
+            codeViewer: document.getElementById('codeViewer'),
+            codeWrapper: document.getElementById('codeWrapper'),
+            codeContent: document.getElementById('codeContent'),
+            lineNumbers: document.getElementById('lineNumbers'),
+            mdViewer: document.getElementById('markdownViewer'),
+            pdfViewer: document.getElementById('pdfViewer'),
+            imgViewer: document.getElementById('imageViewer'),
+            imgContent: document.getElementById('imageContent'),
+            audioViewer: document.getElementById('audioViewer'),
+            audioContent: document.getElementById('audioContent'),
+            videoViewer: document.getElementById('videoViewer'),
+            videoContent: document.getElementById('videoContent'),
+            excelViewer: document.getElementById('excelViewer'),
+            zipViewer: document.getElementById('zipViewer'),
+            zipFileList: document.getElementById('zipFileList'),
+            model3dViewer: document.getElementById('model3dViewer'),
+            modelViewerElement: document.getElementById('modelViewerElement'),
+            modal: document.getElementById('settingsModal'),
+            modalContent: document.getElementById('settingsModalContent'),
+            fontSizeSlider: document.getElementById('fontSizeSlider'),
+            fontSizeDisplay: document.getElementById('fontSizeDisplay'),
+            wordWrapToggle: document.getElementById('wordWrapToggle'),
+            themeIcon: document.getElementById('themeIcon')
+        };
+
+        let currentTextContent = "";
+        let currentObjectUrl = null;
+
+        // Renderizado UI de Recientes
+        window.renderRecentFiles = function(recent) {
+            if (!recent || recent.length === 0) { els.recentFilesContainer.classList.add('hidden'); return; }
+            els.recentFilesContainer.classList.remove('hidden');
+            els.recentFilesList.innerHTML = recent.map(f => `
+                <div class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="w-8 h-8 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-brand-600 dark:text-brand-400">
+                             <i class="ph ${getFileIconClass(f.name)}"></i>
+                        </div>
+                        <div class="truncate">
+                            <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">${f.name}</p>
+                            <p class="text-xs text-gray-500">${formatBytes(f.size)} • ${f.date || 'Hoy'}</p>
+                        </div>
+                    </div>
+                    <span class="text-[10px] text-gray-400 italic bg-gray-50 dark:bg-gray-700/50 px-1.5 py-0.5 rounded">Info</span> 
+                </div>`).join('');
+        };
+
+        function getFileIconClass(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            if(['jpg','png','gif'].includes(ext)) return 'ph-image';
+            if(['pdf'].includes(ext)) return 'ph-file-pdf';
+            if(['zip'].includes(ext)) return 'ph-file-zip';
+            if(['xlsx','csv'].includes(ext)) return 'ph-table';
+            if(['glb','gltf'].includes(ext)) return 'ph-cube';
+            return 'ph-file-text';
+        }
+
+        // Init Settings
+        function initSettings() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                els.themeIcon.classList.replace('ph-moon', 'ph-sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                els.themeIcon.classList.replace('ph-sun', 'ph-moon');
+            }
+            const savedSize = localStorage.getItem('viewer_fontSize') || defaultSettings.fontSize;
+            els.fontSizeSlider.value = savedSize;
+            applyFontSize(savedSize);
+            const savedWrap = localStorage.getItem('viewer_wordWrap') === 'true';
+            els.wordWrapToggle.checked = savedWrap;
+            applyWordWrap(savedWrap);
+        }
+
+        els.fontSizeSlider.addEventListener('input', (e) => { applyFontSize(e.target.value); localStorage.setItem('viewer_fontSize', e.target.value); });
+        els.wordWrapToggle.addEventListener('change', (e) => { applyWordWrap(e.target.checked); localStorage.setItem('viewer_wordWrap', e.target.checked); });
+        function applyFontSize(size) { document.documentElement.style.setProperty('--viewer-font-size', `${size}px`); els.fontSizeDisplay.textContent = `${size}px`; }
+        function applyWordWrap(enabled) {
+            if (enabled) { els.codeWrapper.classList.remove('nowrap-text'); els.codeWrapper.classList.add('wrap-text'); } 
+            else { els.codeWrapper.classList.remove('wrap-text'); els.codeWrapper.classList.add('nowrap-text'); }
+        }
+        window.toggleTheme = function() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.theme = isDark ? 'dark' : 'light';
+            els.themeIcon.className = isDark ? 'ph ph-sun text-lg' : 'ph ph-moon text-lg';
+            if(els.modelViewerElement) els.modelViewerElement.style.backgroundColor = isDark ? '#111827' : '#f3f4f6';
+        };
+        window.toggleSettingsModal = function() {
+            if (els.modal.classList.contains('hidden')) { els.modal.classList.remove('hidden'); setTimeout(() => { els.modal.classList.remove('opacity-0'); els.modalContent.classList.remove('scale-95'); els.modalContent.classList.add('scale-100'); }, 10); } 
+            else { els.modal.classList.add('opacity-0'); els.modalContent.classList.remove('scale-100'); els.modalContent.classList.add('scale-95'); setTimeout(() => els.modal.classList.add('hidden'), 200); }
+        };
+        window.fullReset = function() { if(confirm('¿Reiniciar aplicación?')) { localStorage.clear(); window.location.reload(); } };
+
+        // File Handling
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eName => els.dropZone.addEventListener(eName, e => {e.preventDefault();e.stopPropagation()}, false));
+        els.dropZone.addEventListener('dragenter', () => els.dropZone.classList.add('drag-active'));
+        els.dropZone.addEventListener('dragleave', () => els.dropZone.classList.remove('drag-active'));
+        els.dropZone.addEventListener('drop', e => { els.dropZone.classList.remove('drag-active'); handleFiles(e.dataTransfer.files); });
+        els.fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            if (files.length === 0) return;
+            const file = files[0];
+            
+            // Llamada al Historial (Nube o Local según el estado de Auth)
+            if (file instanceof File && window.addToRecentHistory) window.addToRecentHistory(file);
+
+            els.dropZone.classList.add('hidden');
+            els.viewerContainer.classList.remove('hidden');
+            resetViewers();
+            els.loader.classList.remove('hidden');
+            els.fileName.textContent = file.name;
+            els.fileSize.textContent = formatBytes(file.size);
+            const ext = file.name.split('.').pop().toLowerCase();
+            setTimeout(() => routeFileProcessing(file, ext), 50);
+        }
+
+        // Routing Logic
+        function routeFileProcessing(file, ext) {
+            const type = file.type;
+            try {
+                if (['xlsx', 'xls', 'csv'].includes(ext) || type.includes('spreadsheet') || type.includes('excel')) processSpreadsheet(file, ext);
+                else if (ext === 'zip' || type.includes('zip')) processZip(file);
+                else if (['glb', 'gltf'].includes(ext)) process3D(file);
+                else if (ext === 'pdf' || type === 'application/pdf') processPdf(file);
+                else if (ext === 'md' || ext === 'markdown') processMarkdown(file);
+                else if (type.startsWith('image/')) processImage(file);
+                else if (type.startsWith('audio/')) processMedia(file, 'audio');
+                else if (type.startsWith('video/')) processMedia(file, 'video');
+                else processText(file, ext);
+            } catch (err) { showError('Error: ' + err.message); }
+        }
+
+        // Processors
+        function processText(file, ext) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let content = e.target.result;
+                if (ext === 'json') { try { content = JSON.stringify(JSON.parse(content), null, 4); } catch(e){} }
+                currentTextContent = content;
+                const highlighted = hljs.highlight(content, { language: ext, ignoreIllegals: true }).value;
+                els.codeContent.innerHTML = highlighted;
+                els.codeContent.className = 'block p-0 bg-transparent';
+                const lines = content.split('\n').length;
+                let numbers = ''; for (let i = 1; i <= lines; i++) numbers += i + '\n';
+                els.lineNumbers.textContent = numbers;
+                els.codeViewer.classList.remove('hidden'); finishLoading();
+            };
+            reader.readAsText(file);
+        }
+        function processMarkdown(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentTextContent = e.target.result;
+                els.mdViewer.innerHTML = marked.parse(e.target.result);
+                els.mdViewer.classList.remove('hidden'); finishLoading();
+            };
+            reader.readAsText(file);
+        }
+        function processPdf(file) {
+            els.copyBtn.style.display = 'none';
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const typedarray = new Uint8Array(e.target.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    els.pdfViewer.innerHTML = ''; 
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const scale = 1.5; const viewport = page.getViewport({scale});
+                        const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d');
+                        canvas.height = viewport.height; canvas.width = viewport.width; canvas.className = "shadow-md mb-4 max-w-full h-auto bg-white";
+                        await page.render({canvasContext: ctx, viewport}).promise; els.pdfViewer.appendChild(canvas);
+                    }
+                    els.pdfViewer.classList.remove('hidden'); finishLoading();
+                } catch (err) { showError('PDF protegido o dañado.'); }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        function processSpreadsheet(file, ext) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const html = XLSX.utils.sheet_to_html(workbook.Sheets[workbook.SheetNames[0]], { id: "excelTable", editable: false });
+                els.excelViewer.innerHTML = html;
+                if(els.excelViewer.querySelector('table')) els.excelViewer.querySelector('table').className = "excel-table";
+                els.excelViewer.classList.remove('hidden'); finishLoading();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        function processZip(file) {
+            els.copyBtn.style.display = 'none'; els.backBtn.classList.remove('hidden');
+            JSZip.loadAsync(file).then(zip => {
+                els.zipFileList.innerHTML = '';
+                zip.forEach((relativePath, zipEntry) => {
+                    const div = document.createElement('div');
+                    div.className = "flex items-center gap-3 p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 transition-colors";
+                    const icon = zipEntry.dir ? 'ph-folder text-yellow-500' : 'ph-file text-gray-400';
+                    const size = zipEntry.dir ? '' : formatBytes(zipEntry._data.uncompressedSize);
+                    div.innerHTML = `<i class="ph ${icon} text-xl"></i><div class="flex-grow min-w-0"><p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">${relativePath}</p><p class="text-xs text-gray-500">${size}</p></div><i class="ph ph-caret-right text-gray-300"></i>`;
+                    if (!zipEntry.dir) div.onclick = async () => { const blob = await zipEntry.async("blob"); blob.name = zipEntry.name.split('/').pop(); handleFiles([blob]); };
+                    els.zipFileList.appendChild(div);
+                });
+                els.zipViewer.classList.remove('hidden'); finishLoading();
+            }).catch(() => showError("ZIP dañado."));
+        }
+        function process3D(file) {
+            els.copyBtn.style.display = 'none';
+            currentObjectUrl = URL.createObjectURL(file);
+            els.modelViewerElement.src = currentObjectUrl; els.model3dViewer.classList.remove('hidden'); finishLoading();
+        }
+        function processImage(file) {
+            els.copyBtn.style.display = 'none';
+            const reader = new FileReader(); reader.onload = (e) => { els.imgContent.src = e.target.result; els.imgViewer.classList.remove('hidden'); finishLoading(); };
+            reader.readAsDataURL(file);
+        }
+        function processMedia(file, type) {
+            currentObjectUrl = URL.createObjectURL(file); els.copyBtn.style.display = 'none';
+            if (type === 'audio') { els.audioContent.src = currentObjectUrl; els.audioViewer.classList.remove('hidden'); }
+            else { els.videoContent.src = currentObjectUrl; els.videoViewer.classList.remove('hidden'); }
+            finishLoading();
+        }
+
+        // Helpers
+        function finishLoading() { els.loader.classList.add('hidden'); }
+        function showError(msg) { els.loader.classList.add('hidden'); els.error.classList.remove('hidden'); els.errorText.textContent = msg; }
+        window.resetApp = function() { els.viewerContainer.classList.add('hidden'); els.dropZone.classList.remove('hidden'); els.fileInput.value = ''; window.syncRecentFiles(); resetViewers(); };
+        function resetViewers() {
+            [els.codeViewer, els.mdViewer, els.pdfViewer, els.imgViewer, els.audioViewer, els.videoViewer, els.excelViewer, els.zipViewer, els.model3dViewer, els.error].forEach(el => el.classList.add('hidden'));
+            els.audioContent.pause(); els.audioContent.src = ""; els.videoContent.pause(); els.videoContent.src = ""; els.imgContent.src = ""; els.modelViewerElement.src = "";
+            els.copyBtn.style.display = 'flex'; els.backBtn.classList.add('hidden');
+            if (currentObjectUrl) { URL.revokeObjectURL(currentObjectUrl); currentObjectUrl = null; } currentTextContent = "";
+        }
+        function formatBytes(bytes, d=2) { if(!+bytes) return '0 B'; const k=1024; const i=Math.floor(Math.log(bytes)/Math.log(k)); return `${parseFloat((bytes/Math.pow(k,i)).toFixed(d))} ${['B','KB','MB','GB'][i]}`; }
+        window.copyContent = function() { if(!currentTextContent)return; const t=document.createElement("textarea"); t.value=currentTextContent; document.body.appendChild(t); t.select(); try{document.execCommand('copy')}catch(e){} document.body.removeChild(t); };
+
+        // Start
+        initSettings();
+        els.modal.addEventListener('click', (e) => { if(e.target===els.modal) toggleSettingsModal(); });
+    </script>
+</body>
+</html>
