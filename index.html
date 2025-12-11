@@ -197,13 +197,11 @@
 
     <!-- Firebase Logic -->
     <script type="module">
-        // Importaciones actualizadas a la versión 12.6.0 como solicitaste
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js';
         import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js';
 
-        // Tu configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyA0JACOeq_x640BzTXiprI5_cAS3fQD0mU",
             authDomain: "visor-e592b.firebaseapp.com",
@@ -214,9 +212,8 @@
             measurementId: "G-B60CHJWFZQ"
         };
 
-        // Inicializar Firebase
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app); // Inicializamos Analytics
+        const analytics = getAnalytics(app); 
         const auth = getAuth(app);
         const db = getFirestore(app);
         
@@ -225,28 +222,19 @@
         let user = null;
         let unsubscribeRecent = null;
 
-        // Listener de Auth (Estado del Usuario)
         onAuthStateChanged(auth, (currentUser) => {
             user = currentUser;
             updateAuthUI();
-            syncRecentFiles(); // Al cambiar estado, recargamos el historial correspondiente
+            syncRecentFiles(); 
         });
 
-        // Funciones Globales de Auth
         window.signIn = async () => {
             const provider = new GoogleAuthProvider();
-            try {
-                await signInWithPopup(auth, provider);
-            } catch (error) {
-                console.error("Error Auth:", error);
-                alert("Error al iniciar sesión: " + error.message);
-            }
+            try { await signInWithPopup(auth, provider); } 
+            catch (error) { console.error("Error Auth:", error); alert("Error al iniciar sesión: " + error.message); }
         };
 
-        window.logOut = async () => {
-            await signOut(auth);
-            // Al salir, user será null y syncRecentFiles cambiará a localStorage automáticamente
-        };
+        window.logOut = async () => { await signOut(auth); };
 
         function updateAuthUI() {
             const loginBtn = document.getElementById('loginBtn');
@@ -256,81 +244,56 @@
             const syncStatus = document.getElementById('syncStatus');
 
             if (user) {
-                // Usuario Logueado
                 loginBtn.classList.add('hidden');
                 userProfile.classList.remove('hidden');
                 userAvatar.src = user.photoURL || 'https://ui-avatars.com/api/?name=User';
                 userName.textContent = user.displayName ? user.displayName.split(' ')[0] : 'Usuario';
-                
                 syncStatus.textContent = "Sincronizado";
                 syncStatus.className = "text-[10px] font-normal normal-case bg-green-100 text-green-700 px-2 py-0.5 rounded flex items-center gap-1";
                 syncStatus.innerHTML = '<i class="ph-fill ph-cloud-check"></i> Cloud';
                 syncStatus.classList.remove('hidden');
             } else {
-                // Usuario No Logueado (Local)
                 loginBtn.classList.remove('hidden');
                 userProfile.classList.add('hidden');
-                
                 syncStatus.textContent = "Local";
                 syncStatus.className = "text-[10px] font-normal normal-case bg-gray-100 dark:bg-gray-700 text-gray-500 px-2 py-0.5 rounded";
                 syncStatus.classList.remove('hidden');
             }
         }
 
-        // Lógica Híbrida de Historial
         window.addToRecentHistory = async (file) => {
-            const fileData = {
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                date: new Date().toLocaleDateString()
-            };
-
+            const fileData = { name: file.name, size: file.size, type: file.type, date: new Date().toLocaleDateString() };
             if (user) {
-                // MODO CLOUD: Guardar en Firestore si está logueado
-                try {
-                    await addDoc(collection(db, 'users', user.uid, 'history'), {
-                        ...fileData,
-                        timestamp: serverTimestamp()
-                    });
-                } catch (e) { 
-                    console.error("Error guardando en nube", e);
-                }
+                try { await addDoc(collection(db, 'users', user.uid, 'history'), { ...fileData, timestamp: serverTimestamp() }); } 
+                catch (e) { console.error("Error guardando en nube", e); }
             } else {
-                // MODO LOCAL: Guardar en localStorage si NO está logueado
                 let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-                recent = recent.filter(f => f.name !== file.name); // Evitar duplicados
+                recent = recent.filter(f => f.name !== file.name); 
                 recent.unshift(fileData);
-                if (recent.length > 5) recent.pop(); // Mantener solo 5
+                if (recent.length > 5) recent.pop(); 
                 localStorage.setItem('recentFiles', JSON.stringify(recent));
                 renderRecentFiles(recent);
             }
         };
 
         function syncRecentFiles() {
-            if (unsubscribeRecent) unsubscribeRecent(); // Limpiar listener anterior
-
+            if (unsubscribeRecent) unsubscribeRecent(); 
             if (user) {
-                // MODO CLOUD: Escuchar cambios en Firestore
                 const q = query(collection(db, 'users', user.uid, 'history'), orderBy('timestamp', 'desc'), limit(6));
                 unsubscribeRecent = onSnapshot(q, (snapshot) => {
                     const recent = snapshot.docs.map(doc => doc.data());
                     renderRecentFiles(recent);
-                }, (error) => {
-                    console.error("Error Firestore:", error);
-                });
+                }, (error) => { console.error("Error Firestore:", error); });
             } else {
-                // MODO LOCAL: Leer localStorage
                 const recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
                 renderRecentFiles(recent);
             }
         }
         
-        // Exportar para que el script normal pueda llamar a esta función al resetear
         window.syncRecentFiles = syncRecentFiles; 
     </script>
 
-    <!-- App Logic UI (Misma lógica visual) -->
+    <!-- App Logic UI -->
     <script>
         const defaultSettings = { fontSize: 14, wordWrap: false, theme: 'system' };
         
@@ -376,7 +339,6 @@
         let currentTextContent = "";
         let currentObjectUrl = null;
 
-        // Renderizado UI de Recientes
         window.renderRecentFiles = function(recent) {
             if (!recent || recent.length === 0) { els.recentFilesContainer.classList.add('hidden'); return; }
             els.recentFilesContainer.classList.remove('hidden');
@@ -405,7 +367,6 @@
             return 'ph-file-text';
         }
 
-        // Init Settings
         function initSettings() {
             if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
@@ -441,7 +402,6 @@
         };
         window.fullReset = function() { if(confirm('¿Reiniciar aplicación?')) { localStorage.clear(); window.location.reload(); } };
 
-        // File Handling
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eName => els.dropZone.addEventListener(eName, e => {e.preventDefault();e.stopPropagation()}, false));
         els.dropZone.addEventListener('dragenter', () => els.dropZone.classList.add('drag-active'));
         els.dropZone.addEventListener('dragleave', () => els.dropZone.classList.remove('drag-active'));
@@ -452,7 +412,6 @@
             if (files.length === 0) return;
             const file = files[0];
             
-            // Llamada al Historial (Nube o Local según el estado de Auth)
             if (file instanceof File && window.addToRecentHistory) window.addToRecentHistory(file);
 
             els.dropZone.classList.add('hidden');
@@ -465,7 +424,6 @@
             setTimeout(() => routeFileProcessing(file, ext), 50);
         }
 
-        // Routing Logic
         function routeFileProcessing(file, ext) {
             const type = file.type;
             try {
@@ -481,34 +439,62 @@
             } catch (err) { showError('Error: ' + err.message); }
         }
 
-        // Processors
+        // --- Procesadores Corregidos (Try/Catch) ---
+
         function processText(file, ext) {
+            setFileIcon('ph-code', 'text-purple-600');
             const reader = new FileReader();
             reader.onload = (e) => {
-                let content = e.target.result;
-                if (ext === 'json') { try { content = JSON.stringify(JSON.parse(content), null, 4); } catch(e){} }
-                currentTextContent = content;
-                const highlighted = hljs.highlight(content, { language: ext, ignoreIllegals: true }).value;
-                els.codeContent.innerHTML = highlighted;
-                els.codeContent.className = 'block p-0 bg-transparent';
-                const lines = content.split('\n').length;
-                let numbers = ''; for (let i = 1; i <= lines; i++) numbers += i + '\n';
-                els.lineNumbers.textContent = numbers;
-                els.codeViewer.classList.remove('hidden'); finishLoading();
+                try {
+                    let content = e.target.result;
+                    if (ext === 'json') { try { content = JSON.stringify(JSON.parse(content), null, 4); } catch(e){} }
+                    currentTextContent = content;
+
+                    let highlighted;
+                    // FIX: Comprobación segura de lenguaje
+                    if (hljs.getLanguage(ext)) {
+                        highlighted = hljs.highlight(content, { language: ext, ignoreIllegals: true }).value;
+                    } else {
+                        // Fallback automático o texto plano si falla
+                        highlighted = hljs.highlightAuto(content).value; 
+                    }
+
+                    els.codeContent.innerHTML = highlighted;
+                    els.codeContent.className = 'block p-0 bg-transparent';
+                    const lines = content.split('\n').length;
+                    let numbers = ''; for (let i = 1; i <= lines; i++) numbers += i + '\n';
+                    els.lineNumbers.textContent = numbers;
+                    els.codeViewer.classList.remove('hidden'); 
+                } catch (err) {
+                    console.error("Error Text:", err);
+                    showError("Error visualizando código: " + err.message);
+                } finally {
+                    finishLoading(); // Siempre quitar el loader
+                }
             };
+            reader.onerror = () => showError("Error leyendo archivo");
             reader.readAsText(file);
         }
+
         function processMarkdown(file) {
+            setFileIcon('ph-markdown-logo', 'text-blue-500');
             const reader = new FileReader();
             reader.onload = (e) => {
-                currentTextContent = e.target.result;
-                els.mdViewer.innerHTML = marked.parse(e.target.result);
-                els.mdViewer.classList.remove('hidden'); finishLoading();
+                try {
+                    currentTextContent = e.target.result;
+                    els.mdViewer.innerHTML = marked.parse(e.target.result);
+                    els.mdViewer.classList.remove('hidden'); 
+                } catch (err) {
+                    showError("Markdown inválido");
+                } finally {
+                    finishLoading();
+                }
             };
             reader.readAsText(file);
         }
+
         function processPdf(file) {
-            els.copyBtn.style.display = 'none';
+            setFileIcon('ph-file-pdf', 'text-red-500'); els.copyBtn.style.display = 'none';
             const reader = new FileReader();
             reader.onload = async function(e) {
                 try {
@@ -522,25 +508,38 @@
                         canvas.height = viewport.height; canvas.width = viewport.width; canvas.className = "shadow-md mb-4 max-w-full h-auto bg-white";
                         await page.render({canvasContext: ctx, viewport}).promise; els.pdfViewer.appendChild(canvas);
                     }
-                    els.pdfViewer.classList.remove('hidden'); finishLoading();
-                } catch (err) { showError('PDF protegido o dañado.'); }
+                    els.pdfViewer.classList.remove('hidden'); 
+                } catch (err) { 
+                    showError('PDF protegido o dañado.'); 
+                } finally {
+                    finishLoading();
+                }
             };
             reader.readAsArrayBuffer(file);
         }
+
         function processSpreadsheet(file, ext) {
+            setFileIcon('ph-table', 'text-green-600');
             const reader = new FileReader();
             reader.onload = (e) => {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const html = XLSX.utils.sheet_to_html(workbook.Sheets[workbook.SheetNames[0]], { id: "excelTable", editable: false });
-                els.excelViewer.innerHTML = html;
-                if(els.excelViewer.querySelector('table')) els.excelViewer.querySelector('table').className = "excel-table";
-                els.excelViewer.classList.remove('hidden'); finishLoading();
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const html = XLSX.utils.sheet_to_html(workbook.Sheets[workbook.SheetNames[0]], { id: "excelTable", editable: false });
+                    els.excelViewer.innerHTML = html;
+                    if(els.excelViewer.querySelector('table')) els.excelViewer.querySelector('table').className = "excel-table";
+                    els.excelViewer.classList.remove('hidden'); 
+                } catch(err) {
+                    showError("Error en Excel");
+                } finally {
+                    finishLoading();
+                }
             };
             reader.readAsArrayBuffer(file);
         }
+
         function processZip(file) {
-            els.copyBtn.style.display = 'none'; els.backBtn.classList.remove('hidden');
+            setFileIcon('ph-file-zip', 'text-yellow-600'); els.copyBtn.style.display = 'none'; els.backBtn.classList.remove('hidden');
             JSZip.loadAsync(file).then(zip => {
                 els.zipFileList.innerHTML = '';
                 zip.forEach((relativePath, zipEntry) => {
@@ -552,27 +551,37 @@
                     if (!zipEntry.dir) div.onclick = async () => { const blob = await zipEntry.async("blob"); blob.name = zipEntry.name.split('/').pop(); handleFiles([blob]); };
                     els.zipFileList.appendChild(div);
                 });
-                els.zipViewer.classList.remove('hidden'); finishLoading();
-            }).catch(() => showError("ZIP dañado."));
+                els.zipViewer.classList.remove('hidden'); 
+                finishLoading();
+            }).catch(() => showError("ZIP dañado o protegido."));
         }
+
         function process3D(file) {
-            els.copyBtn.style.display = 'none';
-            currentObjectUrl = URL.createObjectURL(file);
-            els.modelViewerElement.src = currentObjectUrl; els.model3dViewer.classList.remove('hidden'); finishLoading();
+            setFileIcon('ph-cube', 'text-indigo-600'); els.copyBtn.style.display = 'none';
+            try {
+                currentObjectUrl = URL.createObjectURL(file);
+                els.modelViewerElement.src = currentObjectUrl; 
+                els.model3dViewer.classList.remove('hidden'); 
+            } catch(e) { showError("Error 3D"); }
+            finally { finishLoading(); }
         }
+
         function processImage(file) {
-            els.copyBtn.style.display = 'none';
-            const reader = new FileReader(); reader.onload = (e) => { els.imgContent.src = e.target.result; els.imgViewer.classList.remove('hidden'); finishLoading(); };
+            setFileIcon('ph-image', 'text-green-500'); els.copyBtn.style.display = 'none';
+            const reader = new FileReader(); 
+            reader.onload = (e) => { els.imgContent.src = e.target.result; els.imgViewer.classList.remove('hidden'); finishLoading(); };
+            reader.onerror = () => { showError("Error imagen"); finishLoading(); };
             reader.readAsDataURL(file);
         }
+
         function processMedia(file, type) {
             currentObjectUrl = URL.createObjectURL(file); els.copyBtn.style.display = 'none';
-            if (type === 'audio') { els.audioContent.src = currentObjectUrl; els.audioViewer.classList.remove('hidden'); }
-            else { els.videoContent.src = currentObjectUrl; els.videoViewer.classList.remove('hidden'); }
+            if (type === 'audio') { setFileIcon('ph-music-note', 'text-pink-500'); els.audioContent.src = currentObjectUrl; els.audioViewer.classList.remove('hidden'); }
+            else { setFileIcon('ph-film-strip', 'text-indigo-500'); els.videoContent.src = currentObjectUrl; els.videoViewer.classList.remove('hidden'); }
             finishLoading();
         }
 
-        // Helpers
+        function setFileIcon(icon, color) { els.fileIcon.className = `ph ${icon} text-xl ${color}`; }
         function finishLoading() { els.loader.classList.add('hidden'); }
         function showError(msg) { els.loader.classList.add('hidden'); els.error.classList.remove('hidden'); els.errorText.textContent = msg; }
         window.resetApp = function() { els.viewerContainer.classList.add('hidden'); els.dropZone.classList.remove('hidden'); els.fileInput.value = ''; window.syncRecentFiles(); resetViewers(); };
@@ -585,7 +594,6 @@
         function formatBytes(bytes, d=2) { if(!+bytes) return '0 B'; const k=1024; const i=Math.floor(Math.log(bytes)/Math.log(k)); return `${parseFloat((bytes/Math.pow(k,i)).toFixed(d))} ${['B','KB','MB','GB'][i]}`; }
         window.copyContent = function() { if(!currentTextContent)return; const t=document.createElement("textarea"); t.value=currentTextContent; document.body.appendChild(t); t.select(); try{document.execCommand('copy')}catch(e){} document.body.removeChild(t); };
 
-        // Start
         initSettings();
         els.modal.addEventListener('click', (e) => { if(e.target===els.modal) toggleSettingsModal(); });
     </script>
