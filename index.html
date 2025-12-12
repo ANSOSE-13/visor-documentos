@@ -23,6 +23,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- IDB Keyval (Para guardar archivos en local) -->
+    <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 
     <script>
         tailwind.config = {
@@ -55,7 +57,7 @@
         .dark .markdown-body code { background: #374151; color: #e5e7eb; }
         .dark .markdown-body pre { background: #111827; border: 1px solid #374151; }
 
-        /* Utilidades y Tablas */
+        /* Utilidades */
         .drag-active { border-color: #0ea5e9 !important; background-color: #f0f9ff !important; transform: scale(1.02); }
         .dark .drag-active { background-color: #1e293b !important; }
         .excel-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -64,7 +66,7 @@
         .dark .excel-table th { background-color: #1f2937; color: #e5e7eb; border-color: #374151; }
         .dark .excel-table td { color: #d1d5db; border-color: #374151; }
 
-        /* Editor Dual Pane */
+        /* Editor */
         .code-wrapper { display: flex; width: 100%; height: 100%; overflow: auto; background-color: white; font-family: 'JetBrains Mono', monospace; }
         .dark .code-wrapper { background-color: #1e1e1e; }
         .gutter { flex-shrink: 0; text-align: right; padding: 1rem 0.75rem; min-width: 3.5rem; background-color: #f8f9fa; border-right: 1px solid #e5e7eb; color: #9ca3af; user-select: none; line-height: 1.5; position: sticky; left: 0; z-index: 10; }
@@ -72,6 +74,11 @@
         .code-pane { flex-grow: 1; padding: 1rem; margin: 0; background: transparent; color: inherit; line-height: 1.5; overflow-x: visible; }
         .wrap-text .code-pane { white-space: pre-wrap; word-wrap: break-word; }
         .nowrap-text .code-pane { white-space: pre; }
+        
+        /* Breadcrumbs */
+        .breadcrumb-item:not(:last-child):after { content: '/'; margin: 0 0.5rem; color: #9ca3af; }
+        .breadcrumb-item:last-child { font-weight: 600; color: #0284c7; }
+        .dark .breadcrumb-item:last-child { color: #38bdf8; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-dark-950 text-gray-800 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-300">
@@ -89,34 +96,26 @@
                         Universal Viewer 
                         <span class="text-[10px] bg-brand-100 dark:bg-brand-900 text-brand-700 dark:text-brand-300 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">Cloud</span>
                     </h1>
-                    <p class="hidden sm:block text-xs text-gray-500 dark:text-gray-400 font-medium">Visualizador + Historial en la Nube</p>
+                    <p class="hidden sm:block text-xs text-gray-500 dark:text-gray-400 font-medium">Visualizador + Gestor de Archivos</p>
                 </div>
             </div>
             
             <div class="flex items-center gap-2">
                 <!-- User Profile / Login -->
                 <div id="authContainer" class="mr-2 border-r border-gray-200 dark:border-gray-700 pr-3">
-                    <button id="loginBtn" onclick="signIn()" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <button id="loginBtn" class="text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                         <i class="ph ph-google-logo text-lg"></i> Acceder
                     </button>
                     <div id="userProfile" class="hidden flex items-center gap-3 group relative cursor-pointer">
                         <span id="userName" class="text-xs font-medium hidden sm:block">Usuario</span>
                         <img id="userAvatar" src="" alt="Avatar" class="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-600">
-                        <!-- Dropdown Logout -->
                         <div class="absolute right-0 top-full mt-2 w-32 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-100 dark:border-gray-700 p-1 hidden group-hover:block z-50">
-                            <button onclick="logOut()" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded flex items-center gap-2">
-                                <i class="ph ph-sign-out"></i> Salir
-                            </button>
+                            <button id="logoutBtn" class="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded flex items-center gap-2"><i class="ph ph-sign-out"></i> Salir</button>
                         </div>
                     </div>
                 </div>
-
-                <button onclick="toggleTheme()" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 transition-all">
-                    <i id="themeIcon" class="ph ph-moon text-lg"></i>
-                </button>
-                <button onclick="toggleSettingsModal()" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 transition-all">
-                    <i class="ph ph-gear text-lg"></i>
-                </button>
+                <button onclick="toggleTheme()" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 transition-all"><i id="themeIcon" class="ph ph-moon text-lg"></i></button>
+                <button onclick="toggleSettingsModal()" class="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-brand-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-brand-400 dark:hover:bg-gray-700 transition-all"><i class="ph ph-gear text-lg"></i></button>
             </div>
         </div>
     </header>
@@ -127,22 +126,26 @@
             <div class="bg-white dark:bg-dark-800 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer hover:border-brand-500 dark:hover:border-brand-500 hover:bg-gray-50 dark:hover:bg-gray-800/80 group shadow-sm relative overflow-hidden">
                 <input type="file" id="fileInput" class="hidden" multiple>
                 <div class="flex flex-col items-center justify-center pointer-events-none relative z-10">
-                    <div class="w-20 h-20 bg-brand-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                        <i class="ph ph-cloud-arrow-up text-4xl text-brand-600 dark:text-brand-400"></i>
-                    </div>
+                    <div class="w-20 h-20 bg-brand-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300"><i class="ph ph-cloud-arrow-up text-4xl text-brand-600 dark:text-brand-400"></i></div>
                     <h2 class="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">Arrastra tu archivo aquí</h2>
-                    <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto text-sm">Soporta Excel, ZIP, PDF, Código, Imágenes, 3D...<br>Procesamiento local.</p>
+                    <p class="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto text-sm">Soporta Excel, ZIP, PDF, Código, Imágenes, 3D...<br>Procesamiento local y sincronización.</p>
                     <span class="bg-brand-600 dark:bg-brand-600 text-white px-6 py-2.5 rounded-lg font-medium shadow-md shadow-brand-500/20 hover:bg-brand-700 transition-colors cursor-pointer pointer-events-auto" onclick="document.getElementById('fileInput').click()">Seleccionar Archivo</span>
                 </div>
             </div>
 
-            <!-- Recientes -->
-            <div id="recentFilesContainer" class="hidden">
-                <div class="flex justify-between items-end mb-3 px-1">
-                    <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-2">
-                        <i class="ph ph-clock-counter-clockwise"></i> Recientes
-                        <span id="syncStatus" class="text-[10px] font-normal normal-case bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-500 hidden">Local</span>
-                    </h3>
+            <!-- Panel de Archivos -->
+            <div id="recentFilesContainer" class="hidden w-full">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 bg-white dark:bg-gray-800 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div id="breadcrumbs" class="flex flex-wrap items-center text-sm text-gray-500 dark:text-gray-400 pl-1">
+                        <!-- Breadcrumbs dinámicos -->
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <span id="syncStatus" class="text-[10px] font-normal bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-500">Local</span>
+                        <!-- Botón New Folder con onclick directo para mayor robustez -->
+                        <button onclick="createNewFolder()" class="ml-auto sm:ml-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 rounded-lg hover:bg-brand-100 dark:hover:bg-brand-900/50 transition-colors">
+                            <i class="ph ph-folder-plus text-lg"></i> Nueva Carpeta
+                        </button>
+                    </div>
                 </div>
                 <div id="recentFilesList" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </div>
@@ -164,7 +167,6 @@
             <div class="bg-white dark:bg-dark-800 border-x border-b border-gray-200 dark:border-gray-700 rounded-b-xl shadow-lg overflow-hidden min-h-[500px] transition-colors relative">
                 <div id="loader" class="hidden absolute inset-0 bg-white/80 dark:bg-dark-900/80 z-50 flex flex-col items-center justify-center backdrop-blur-sm"><i class="ph ph-spinner animate-spin text-4xl text-brand-600 dark:text-brand-400 mb-3"></i><p class="text-gray-600 dark:text-gray-300 font-medium">Procesando...</p></div>
                 <div id="errorMessage" class="hidden absolute inset-0 flex items-center justify-center p-8 text-center z-10"><div class="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-6 rounded-xl max-w-lg border border-red-100 dark:border-red-900/30"><i class="ph ph-warning-circle text-3xl mb-2 block"></i><p class="font-bold text-lg mb-1">Error</p><p id="errorText" class="text-sm opacity-90">Formato no soportado.</p></div></div>
-                
                 <!-- Viewers -->
                 <div id="codeViewer" class="hidden h-[75vh] w-full"><div class="code-wrapper nowrap-text" id="codeWrapper"><div class="gutter"><pre id="lineNumbers"></pre></div><div class="code-pane"><pre><code id="codeContent" class="block bg-transparent p-0"></code></pre></div></div></div>
                 <div id="markdownViewer" class="hidden p-8 max-h-[75vh] overflow-auto markdown-body"></div>
@@ -195,13 +197,15 @@
         </div>
     </div>
 
-    <!-- Firebase Logic -->
+    <!-- Firebase Logic + Folder Logic -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-analytics.js";
-        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js';
-        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-firestore.js';
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js';
 
+        // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyA0JACOeq_x640BzTXiprI5_cAS3fQD0mU",
             authDomain: "visor-e592b.firebaseapp.com",
@@ -212,29 +216,194 @@
             measurementId: "G-B60CHJWFZQ"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app); 
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        
-        console.log("Firebase 12.6.0 inicializado con tu configuración");
-
+        // Estado Global del Módulo
         let user = null;
         let unsubscribeRecent = null;
+        let currentFolderId = 'root';
+        let folderPath = [{id: 'root', name: 'Inicio'}];
+        let allItems = [];
+        let auth, db, storage;
 
-        onAuthStateChanged(auth, (currentUser) => {
-            user = currentUser;
-            updateAuthUI();
-            syncRecentFiles(); 
-        });
+        // --- FUNCIONES DEL CORE (Definidas antes de init) ---
 
-        window.signIn = async () => {
-            const provider = new GoogleAuthProvider();
-            try { await signInWithPopup(auth, provider); } 
-            catch (error) { console.error("Error Auth:", error); alert("Error al iniciar sesión: " + error.message); }
+        // 1. Crear Carpeta
+        async function createNewFolder() {
+            console.log("Intentando crear carpeta..."); // DEBUG
+            const name = prompt("Nombre de la carpeta:");
+            if(!name) return;
+
+            const folderData = {
+                name: name,
+                type: 'folder',
+                parentId: currentFolderId,
+                date: new Date().toLocaleDateString()
+            };
+
+            if (user) {
+                try {
+                    await addDoc(collection(db, 'users', user.uid, 'history'), { 
+                        ...folderData, 
+                        timestamp: serverTimestamp() 
+                    });
+                } catch (e) { 
+                    console.error("Error Firestore", e); 
+                    alert("Error guardando en nube: " + e.message);
+                }
+            } else {
+                let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+                folderData.id = Date.now().toString(); 
+                recent.unshift(folderData);
+                localStorage.setItem('recentFiles', JSON.stringify(recent));
+                syncRecentFiles();
+            }
+        }
+        window.createNewFolder = createNewFolder; // EXPORTAR GLOBALMENTE PARA QUE EL ONCLICK FUNCIONE
+
+        // 2. Navegar
+        window.navigateToFolder = (folderId, folderName) => {
+            if (folderId === 'root') {
+                currentFolderId = 'root';
+                folderPath = [{id: 'root', name: 'Inicio'}];
+            } else {
+                currentFolderId = folderId;
+                const existingIndex = folderPath.findIndex(p => p.id === folderId);
+                if (existingIndex !== -1) {
+                    folderPath = folderPath.slice(0, existingIndex + 1);
+                } else {
+                    folderPath.push({id: folderId, name: folderName});
+                }
+            }
+            filterAndRender();
         };
 
-        window.logOut = async () => { await signOut(auth); };
+        // 3. Añadir Archivo (History)
+        window.addToRecentHistory = async (file) => {
+            const fileData = { 
+                name: file.name, 
+                size: file.size, 
+                type: file.type, 
+                parentId: currentFolderId, 
+                date: new Date().toLocaleDateString() 
+            };
+            
+            if (user) {
+                let downloadURL = null;
+                try {
+                    const fileRef = ref(storage, `users/${user.uid}/files/${Date.now()}_${file.name}`);
+                    const snapshot = await uploadBytes(fileRef, file);
+                    downloadURL = await getDownloadURL(snapshot.ref);
+                } catch (e) { console.warn("Storage error", e); }
+
+                try {
+                    await addDoc(collection(db, 'users', user.uid, 'history'), { 
+                        ...fileData, 
+                        downloadURL,
+                        timestamp: serverTimestamp() 
+                    });
+                } catch (e) { console.error("Error Firestore", e); }
+            } else {
+                try { 
+                    if(window.idbKeyval) await window.idbKeyval.set(file.name, file); 
+                } catch(e) { console.error("IDB Error", e); }
+                
+                let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+                // Evitamos duplicados EN LA MISMA CARPETA
+                recent = recent.filter(f => !(f.name === file.name && f.parentId === currentFolderId));
+                fileData.id = Date.now().toString();
+                recent.unshift(fileData);
+                localStorage.setItem('recentFiles', JSON.stringify(recent));
+                syncRecentFiles();
+            }
+        };
+
+        // 4. Sincronizar
+        function syncRecentFiles() {
+            if (unsubscribeRecent) unsubscribeRecent(); 
+            if (user) {
+                const q = query(collection(db, 'users', user.uid, 'history'), orderBy('timestamp', 'desc'));
+                unsubscribeRecent = onSnapshot(q, (snapshot) => {
+                    allItems = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    filterAndRender();
+                });
+            } else {
+                allItems = JSON.parse(localStorage.getItem('recentFiles') || '[]');
+                filterAndRender();
+            }
+        }
+        window.syncRecentFiles = syncRecentFiles; // Exponer para reset
+
+        // 5. Renderizar y Filtrar
+        function filterAndRender() {
+            const currentItems = allItems.filter(item => {
+                const pId = item.parentId || 'root';
+                return pId === currentFolderId;
+            });
+
+            const folders = currentItems.filter(i => i.type === 'folder');
+            const files = currentItems.filter(i => i.type !== 'folder');
+
+            // Breadcrumbs
+            const breadcrumbsEl = document.getElementById('breadcrumbs');
+            if(breadcrumbsEl) {
+                breadcrumbsEl.innerHTML = folderPath.map((crumb, index) => {
+                    const isLast = index === folderPath.length - 1;
+                    return `<span class="breadcrumb-item ${isLast ? '' : 'cursor-pointer hover:text-brand-600'}" 
+                            onclick="${isLast ? '' : `navigateToFolder('${crumb.id}', '${crumb.name}')`}" >
+                            ${crumb.name}
+                            </span>`;
+                }).join('');
+            }
+
+            renderRecentFiles([...folders, ...files]);
+        }
+
+        // 6. Abrir desde Historial
+        window.openFileFromHistory = async (fileName, fileUrl) => {
+            document.getElementById('loader').classList.remove('hidden');
+            try {
+                let blob = null;
+                if (user && fileUrl) {
+                    const response = await fetch(fileUrl);
+                    blob = await response.blob();
+                    blob = new File([blob], fileName, { type: blob.type });
+                } else if (!user) {
+                    if(window.idbKeyval) blob = await window.idbKeyval.get(fileName);
+                }
+                if (blob) window.handleFiles([blob]); 
+                else { alert("Archivo no encontrado o expirado."); document.getElementById('loader').classList.add('hidden'); }
+            } catch (e) {
+                console.error(e);
+                alert("Error: " + e.message);
+                document.getElementById('loader').classList.add('hidden');
+            }
+        };
+
+        // --- INICIALIZACIÓN ---
+        try {
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            storage = getStorage(app);
+            
+            // Listener de Auth
+            onAuthStateChanged(auth, (currentUser) => {
+                user = currentUser;
+                updateAuthUI();
+                syncRecentFiles(); 
+            });
+
+            // Bindeo de eventos UI (Login/Logout solamente, NewFolder va por onclick)
+            document.getElementById('loginBtn').addEventListener('click', async () => {
+                const provider = new GoogleAuthProvider();
+                try { await signInWithPopup(auth, provider); } catch (e) { alert(e.message); }
+            });
+            document.getElementById('logoutBtn').addEventListener('click', async () => await signOut(auth));
+
+        } catch (err) {
+            console.error("Error inicializando Firebase:", err);
+            // Fallback Local si falla Firebase
+            syncRecentFiles(); 
+        }
 
         function updateAuthUI() {
             const loginBtn = document.getElementById('loginBtn');
@@ -260,40 +429,9 @@
                 syncStatus.classList.remove('hidden');
             }
         }
-
-        window.addToRecentHistory = async (file) => {
-            const fileData = { name: file.name, size: file.size, type: file.type, date: new Date().toLocaleDateString() };
-            if (user) {
-                try { await addDoc(collection(db, 'users', user.uid, 'history'), { ...fileData, timestamp: serverTimestamp() }); } 
-                catch (e) { console.error("Error guardando en nube", e); }
-            } else {
-                let recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-                recent = recent.filter(f => f.name !== file.name); 
-                recent.unshift(fileData);
-                if (recent.length > 5) recent.pop(); 
-                localStorage.setItem('recentFiles', JSON.stringify(recent));
-                renderRecentFiles(recent);
-            }
-        };
-
-        function syncRecentFiles() {
-            if (unsubscribeRecent) unsubscribeRecent(); 
-            if (user) {
-                const q = query(collection(db, 'users', user.uid, 'history'), orderBy('timestamp', 'desc'), limit(6));
-                unsubscribeRecent = onSnapshot(q, (snapshot) => {
-                    const recent = snapshot.docs.map(doc => doc.data());
-                    renderRecentFiles(recent);
-                }, (error) => { console.error("Error Firestore:", error); });
-            } else {
-                const recent = JSON.parse(localStorage.getItem('recentFiles') || '[]');
-                renderRecentFiles(recent);
-            }
-        }
-        
-        window.syncRecentFiles = syncRecentFiles; 
     </script>
 
-    <!-- App Logic UI -->
+    <!-- App Logic UI (Mismo de siempre) -->
     <script>
         const defaultSettings = { fontSize: 14, wordWrap: false, theme: 'system' };
         
@@ -339,26 +477,42 @@
         let currentTextContent = "";
         let currentObjectUrl = null;
 
-        window.renderRecentFiles = function(recent) {
-            if (!recent || recent.length === 0) { els.recentFilesContainer.classList.add('hidden'); return; }
+        window.renderRecentFiles = function(items) {
+            if (!items || items.length === 0) { 
+                els.recentFilesList.innerHTML = `<div class="col-span-1 sm:col-span-2 text-center text-gray-400 py-8 italic text-sm">Carpeta vacía</div>`;
+                els.recentFilesContainer.classList.remove('hidden'); 
+                return; 
+            }
+            
             els.recentFilesContainer.classList.remove('hidden');
-            els.recentFilesList.innerHTML = recent.map(f => `
-                <div class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
+            
+            els.recentFilesList.innerHTML = items.map(item => {
+                const isFolder = item.type === 'folder';
+                const iconClass = isFolder ? 'ph-folder-simple-fill text-yellow-400' : getFileIconClass(item.name);
+                // Aquí el nombre correcto: navigateToFolder
+                const clickAction = isFolder 
+                        ? `navigateToFolder('${item.id}', '${item.name}')` // ✅ CORRECTO
+                        : `openFileFromHistory('${item.name}', '${item.downloadURL || ''}')`;
+                const subText = isFolder ? 'Carpeta' : `${formatBytes(item.size)} • ${item.date || ''}`;
+
+                return `
+                <div onclick="${clickAction}" class="bg-white dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-brand-500 dark:hover:border-brand-500 group">
                     <div class="flex items-center gap-3 overflow-hidden">
-                        <div class="w-8 h-8 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-brand-600 dark:text-brand-400">
-                             <i class="ph ${getFileIconClass(f.name)}"></i>
+                        <div class="w-8 h-8 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-brand-600 dark:text-brand-400 group-hover:bg-brand-50 dark:group-hover:bg-brand-900/30 transition-colors">
+                             <i class="ph ${iconClass} text-lg"></i>
                         </div>
                         <div class="truncate">
-                            <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">${f.name}</p>
-                            <p class="text-xs text-gray-500">${formatBytes(f.size)} • ${f.date || 'Hoy'}</p>
+                            <p class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">${item.name}</p>
+                            <p class="text-[10px] text-gray-500">${subText}</p>
                         </div>
                     </div>
-                    <span class="text-[10px] text-gray-400 italic bg-gray-50 dark:bg-gray-700/50 px-1.5 py-0.5 rounded">Info</span> 
-                </div>`).join('');
+                    ${!isFolder ? `<span class="text-[10px] text-gray-400 italic bg-gray-50 dark:bg-gray-700/50 px-1.5 py-0.5 rounded group-hover:bg-brand-100 dark:group-hover:bg-brand-900 group-hover:text-brand-600 dark:group-hover:text-brand-300 transition-colors">Abrir</span>` : `<i class="ph ph-caret-right text-gray-400"></i>`} 
+                </div>`;
+            }).join('');
         };
 
         function getFileIconClass(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
+            const ext = filename ? filename.split('.').pop().toLowerCase() : '';
             if(['jpg','png','gif'].includes(ext)) return 'ph-image';
             if(['pdf'].includes(ext)) return 'ph-file-pdf';
             if(['zip'].includes(ext)) return 'ph-file-zip';
@@ -408,11 +562,13 @@
         els.dropZone.addEventListener('drop', e => { els.dropZone.classList.remove('drag-active'); handleFiles(e.dataTransfer.files); });
         els.fileInput.addEventListener('change', e => handleFiles(e.target.files));
 
-        function handleFiles(files) {
+        window.handleFiles = function(files) {
             if (files.length === 0) return;
             const file = files[0];
             
-            if (file instanceof File && window.addToRecentHistory) window.addToRecentHistory(file);
+            if (window.event && (window.event.type === 'drop' || window.event.type === 'change') && window.addToRecentHistory) {
+                 window.addToRecentHistory(file);
+            }
 
             els.dropZone.classList.add('hidden');
             els.viewerContainer.classList.remove('hidden');
@@ -439,7 +595,7 @@
             } catch (err) { showError('Error: ' + err.message); }
         }
 
-        // --- Procesadores Corregidos (Try/Catch) ---
+        // --- Procesadores ---
 
         function processText(file, ext) {
             setFileIcon('ph-code', 'text-purple-600');
@@ -451,11 +607,9 @@
                     currentTextContent = content;
 
                     let highlighted;
-                    // FIX: Comprobación segura de lenguaje
                     if (hljs.getLanguage(ext)) {
                         highlighted = hljs.highlight(content, { language: ext, ignoreIllegals: true }).value;
                     } else {
-                        // Fallback automático o texto plano si falla
                         highlighted = hljs.highlightAuto(content).value; 
                     }
 
@@ -469,7 +623,7 @@
                     console.error("Error Text:", err);
                     showError("Error visualizando código: " + err.message);
                 } finally {
-                    finishLoading(); // Siempre quitar el loader
+                    finishLoading(); 
                 }
             };
             reader.onerror = () => showError("Error leyendo archivo");
